@@ -144,4 +144,4 @@ if submitted:
             except Exception as e:
                 st.error(f"生成失败: {str(e)}")
 
-st.caption("Powered by 阿里千问 Qwen | 已从 Streamlit Secrets 读取 API Key")
+st.caption("| 已从 Streamlit Secrets 读取 API Key")
