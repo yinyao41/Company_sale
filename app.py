@@ -1,105 +1,207 @@
 import streamlit as st
-from docx import Document
-import datetime
-import os
+from openai import OpenAI
 
-st.set_page_config(page_title="TBS销售诊断", layout="centered", page_icon="📊")
+# =========================
+# 页面配置
+# =========================
 
-st.title("🧠 TBS销售增长诊断报告生成器")
-st.markdown("**阿里千问驱动** | 参考TBS销售诊断体系")
+st.set_page_config(
+    page_title="AI销售增长诊断",
+    page_icon="📈",
+    layout="wide"
+)
 
-# ==================== 检查data目录 ====================
-DATA_DIR = "data"
-demo_text = "Demo报告未找到"
+st.title("📈 AI销售增长诊断助手")
+st.markdown("填写问卷后自动生成销售增长诊断报告")
 
-if os.path.exists(DATA_DIR):
-    demo_path = os.path.join(DATA_DIR, "tbs销售-demo 报告.docx")
-    if os.path.exists(demo_path):
-        try:
-            doc = Document(demo_path)
-            demo_text = "\n".join([p.text for p in doc.paragraphs if p.text.strip()])[:6000]
-            st.success("✅ 已成功加载 Demo报告模板")
-        except:
-            st.warning("Demo报告读取失败")
-    else:
-        st.error("❌ 未找到 tbs销售-demo 报告.docx")
-else:
-    st.error("❌ 未找到 data/ 目录")
+# =========================
+# API Key
+# =========================
 
-# ==================== API Key ====================
-api_key = st.text_input("🔑 阿里千问API Key (sk-开头)", type="password")
+api_key = st.sidebar.text_input(
+    "请输入阿里千问 API KEY",
+    type="password"
+)
 
-# ==================== 表单 ====================
-with st.form("form"):
-    col1, col2 = st.columns(2)
-    with col1:
-        company_name = st.text_input("公司名称*", placeholder="山东固丰体育产业有限公司")
-        industry = st.text_input("所属行业*", placeholder="体育产业 / 工业制造")
-    with col2:
-        pass  # 留空对齐
+# =========================
+# 企业信息
+# =========================
 
-    description = st.text_area("公司当前情况描述*", height=180,
-                               placeholder="描述公司规模、问题、优势、核心业务、销售渠道、当前痛点等...")
+company_name = st.text_input("企业名称")
 
-    submitted = st.form_submit_button("🚀 生成诊断报告", type="primary", use_container_width=True)
+industry = st.selectbox(
+    "所属行业",
+    [
+        "工业制造",
+        "企业服务/SaaS",
+        "医疗器械",
+        "消费品",
+        "半导体",
+        "建筑工程",
+        "教育培训",
+        "咨询服务"
+    ]
+)
 
-if submitted:
-    if not api_key or not company_name or not industry or not description:
-        st.error("请填写完整信息")
-    else:
-        with st.spinner("正在调用阿里千问生成报告..."):
-            try:
-                import dashscope
-                dashscope.api_key = api_key
+revenue = st.selectbox(
+    "年收入规模",
+    [
+        "500万以下",
+        "500-1000万",
+        "1000-3000万",
+        "3000万-1亿",
+        "1-3亿",
+        "3亿以上"
+    ]
+)
 
-                prompt = f"""
-请严格模仿以下Demo报告的结构和语气，为以下企业生成一份专业诊断报告：
+customer_profile = st.selectbox(
+    "客户画像是否清晰",
+    [
+        "非常清晰",
+        "大致清楚",
+        "不太清楚",
+        "基本没有"
+    ]
+)
 
-=== Demo参考 ===
-{demo_text}
-=== Demo结束 ===
+lead_channel = st.multiselect(
+    "主要获客渠道",
+    [
+        "老板资源",
+        "老客户转介绍",
+        "销售主动开发",
+        "展会",
+        "线上投放",
+        "内容营销",
+        "合作伙伴推荐"
+    ]
+)
 
-企业名称：{company_name}
-所属行业：{industry}
-公司描述：{description}
+lead_count = st.selectbox(
+    "每月新增线索",
+    [
+        "10条以下",
+        "10-30条",
+        "30-100条",
+        "100条以上"
+    ]
+)
 
-请严格输出以下结构：
-1. 企业销售画像
-2. 核心诊断结论（3-4条）
-3. 销售成熟度评分
-4. 主要销售瓶颈排序
-5. 分项诊断分析
-6. 90天改进方案（分3阶段）
-7. 老板重点指标
-8. 暂不建议事项
-9. 后续补充信息
+sales_process = st.selectbox(
+    "销售流程情况",
+    [
+        "标准流程",
+        "有流程但不统一",
+        "靠个人经验",
+        "没有流程"
+    ]
+)
+
+sales_dependency = st.selectbox(
+    "销售主要依赖",
+    [
+        "老板",
+        "销售负责人",
+        "核心销售",
+        "团队"
+    ]
+)
+
+bottleneck = st.text_area(
+    "当前销售增长最大瓶颈"
+)
+
+# =========================
+# AI诊断
+# =========================
+
+if st.button("生成诊断报告"):
+
+    if not api_key:
+        st.error("请输入阿里云DashScope API Key")
+        st.stop()
+
+    prompt = f"""
+你是一位顶级销售增长顾问。
+
+请根据以下企业信息：
+
+企业名称：
+{company_name}
+
+行业：
+{industry}
+
+收入规模：
+{revenue}
+
+客户画像：
+{customer_profile}
+
+获客渠道：
+{lead_channel}
+
+新增线索：
+{lead_count}
+
+销售流程：
+{sales_process}
+
+销售依赖：
+{sales_dependency}
+
+销售瓶颈：
+{bottleneck}
+
+请按照以下格式输出：
+
+# 一、销售增长成熟度判断
+
+# 二、五大维度评分
+
+客户定位：
+获客能力：
+销售转化：
+团队复制：
+增长问题识别：
+
+# 三、三个核心问题
+
+# 四、90天行动计划
+
+第一阶段（1-30天）
+
+第二阶段（31-60天）
+
+第三阶段（61-90天）
+
+# 五、CEO建议
 """
 
-                resp = dashscope.Generation.call(
-                    model="qwen-plus",
-                    prompt=prompt,
-                    result_format='message'
-                )
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
+    )
 
-                report = resp.output.choices[0].message.content
+    with st.spinner("正在生成诊断报告..."):
 
-                st.success("✅ 报告生成成功！")
-                st.markdown("### 报告预览")
-                st.markdown(report)
+        response = client.chat.completions.create(
+            model="qwen-plus",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "你是一名销售增长咨询顾问"
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        )
 
-                # 下载Word
-                doc = Document()
-                doc.add_heading(f"《{company_name}销售增长诊断报告与90天改进方案》", 0)
-                doc.add_paragraph(report)
-                
-                filename = f"{company_name}_诊断报告_{datetime.date.today()}.docx"
-                doc.save(filename)
+        report = response.choices[0].message.content
 
-                with open(filename, "rb") as f:
-                    st.download_button("📥 下载Word报告", f, filename, use_container_width=True)
+        st.success("诊断完成")
 
-            except Exception as e:
-                st.error(f"生成失败: {str(e)}")
-                st.info("常见原因：API Key错误 或 data目录文件不存在")
-
-st.caption("GitHub: Company_sale | data/ 目录已读取")
+        st.markdown(report)
