@@ -15,13 +15,16 @@ st.title("📈 AI销售增长诊断助手")
 st.markdown("**填写问卷后自动生成专业销售增长诊断报告**")
 
 # =========================
-# 从 Secrets 读取 API Key（推荐方式）
+# 读取阿里千问 API Key（从 Secrets）
 # =========================
 api_key = st.secrets.get("QWEN_API_KEY")
 
 if not api_key:
     st.error("⚠️ 未配置阿里千问 API Key，请在 Streamlit Secrets 中添加 QWEN_API_KEY")
+    st.info("Secrets 配置示例：QWEN_API_KEY = \"sk-xxxxxxxxxxxxxxxx\"")
     st.stop()
+else:
+    st.success("✅ API Key 已正确配置")
 
 # =========================
 # 企业信息表单
@@ -83,7 +86,7 @@ if submitted:
                 )
 
                 prompt = f"""
-你是一名专业的销售增长诊断顾问，请根据以下企业信息生成一份结构化的《销售增长诊断报告与90天改进方案》：
+你是一名专业的销售增长诊断顾问，请根据以下企业信息生成一份结构清晰、专业完整的《销售增长诊断报告与90天改进方案》：
 
 企业名称：{company_name}
 所属行业：{industry}
@@ -101,7 +104,7 @@ if submitted:
 3. 销售成熟度评分
 4. 主要销售瓶颈排序
 5. 分项诊断分析（客户定位、获客能力、销售转化、销售团队、增长问题识别）
-6. 90天销售改进方案（分第1-30天、第31-60天、第61-90天三个阶段）
+6. 90天销售改进方案（分第1-30天、第31-60天、第61-90天三个阶段，每个阶段包含核心目标、关键动作、负责人、执行频率、交付物）
 7. 老板需要重点盯的5个指标
 8. 暂不建议做的事情
 9. 后续需要补充的信息
@@ -118,7 +121,7 @@ if submitted:
                 st.markdown("### 📋 诊断报告")
                 st.markdown(report)
 
-                # 下载Word
+                # 下载Word报告
                 try:
                     from docx import Document
                     doc = Document()
@@ -136,9 +139,9 @@ if submitted:
                             use_container_width=True
                         )
                 except:
-                    pass
+                    st.info("Word下载功能需要 python-docx 库")
 
             except Exception as e:
                 st.error(f"生成失败: {str(e)}")
 
-st.caption("Powered by | 数据已从 data/ 目录加载")
+st.caption("Powered by 阿里千问 Qwen | 已从 Streamlit Secrets 读取 API Key")
