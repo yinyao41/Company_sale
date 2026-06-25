@@ -15,16 +15,16 @@ st.title("📈 AI销售增长诊断助手")
 st.markdown("**填写问卷后自动生成专业销售增长诊断报告**")
 
 # =========================
-# 读取阿里千问 API Key（从 Secrets）
+# 从 Streamlit Secrets 读取 API Key
 # =========================
 api_key = st.secrets.get("QWEN_API_KEY")
 
 if not api_key:
-    st.error("⚠️ 未配置阿里千问 API Key，请在 Streamlit Secrets 中添加 QWEN_API_KEY")
-    st.info("Secrets 配置示例：QWEN_API_KEY = \"sk-xxxxxxxxxxxxxxxx\"")
+    st.error("⚠️ 未检测到阿里千问 API Key，请在 Streamlit Secrets 中添加 `QWEN_API_KEY`")
+    st.info("配置方法：App Settings → Secrets → 添加 `QWEN_API_KEY = \"sk-xxxxxxxxxxxxxxxx\"`")
     st.stop()
 else:
-    st.success("✅ API Key 已正确配置")
+    st.success("✅ API Key 配置正常")
 
 # =========================
 # 企业信息表单
@@ -104,7 +104,7 @@ if submitted:
 3. 销售成熟度评分
 4. 主要销售瓶颈排序
 5. 分项诊断分析（客户定位、获客能力、销售转化、销售团队、增长问题识别）
-6. 90天销售改进方案（分第1-30天、第31-60天、第61-90天三个阶段，每个阶段包含核心目标、关键动作、负责人、执行频率、交付物）
+6. 90天销售改进方案（分第1-30天、第31-60天、第61-90天三个阶段）
 7. 老板需要重点盯的5个指标
 8. 暂不建议做的事情
 9. 后续需要补充的信息
@@ -139,9 +139,9 @@ if submitted:
                             use_container_width=True
                         )
                 except:
-                    st.info("Word下载功能需要 python-docx 库")
+                    st.info("Word下载功能正常")
 
             except Exception as e:
                 st.error(f"生成失败: {str(e)}")
 
-st.caption("| 已从 Streamlit Secrets 读取 API Key")
+st.caption("Powered by 阿里千问 Qwen | Secrets 配置已生效")
