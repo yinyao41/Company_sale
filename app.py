@@ -2,7 +2,6 @@ import streamlit as st
 import os
 from docx import Document
 import requests
-import json
 
 st.set_page_config(page_title="AI销售增长诊断助手", layout="wide")
 
@@ -33,20 +32,48 @@ questions = {
     "公司当前销售增长最大的瓶颈是什么？未来90天最希望改善什么？": {"type": "text"}
 }
 
+# Demo data extracted from tbs销售-demo 报告 (华东智造装备有限公司)
+demo_data = {
+    "企业名称": "华东智造装备有限公司",
+    "所属行业": "工业制造",
+    "公司主要产品或服务是什么？": "自动化检测设备和产线改造方案，产品包括视觉检测设备、自动分拣设备和非标自动化产线升级服务",
+    "当前年收入规模大概是多少？": "3000万–1亿元",
+    "产品或服务的平均客单价大概是多少？": "50万–100万元",
+    "公司主要客户类型是什么？": ["工厂 / 制造企业"],
+    "公司目前最主要的客户来自哪些行业？": "汽车零部件、电子制造、精密五金和家电制造",
+    "公司是否已经形成清晰的目标客户画像？": "大致清楚，但还不够聚焦",
+    "公司目前最容易成交的客户有什么共同特征？": "收入规模较大、有自动化改造需求、人工检测成本较高、老板或生产负责人重视降本增效",
+    "公司目前主要通过哪些方式获得客户线索？": ["老板个人资源", "老客户转介绍", "展会 / 行业会议", "合作伙伴推荐"],
+    "当前最有效的获客渠道是什么？为什么？": "老板个人资源和老客户转介绍（质量较高）",
+    "公司每月大概新增多少条客户线索？": "10条以下",
+    "当前获客最大的困难是什么？": ["线索数量少", "老板资源用完后增长乏力"],
+    "从首次接触客户到最终成交，平均销售周期大概多久？": "3–6个月",
+    "公司是否有明确的销售流程？": "有大致流程，但执行不统一",
+    "当前销售过程最容易卡在哪个环节？": ["客户愿意见面但不推进", "报价后客户不回复", "客户觉得价格高", "决策链条复杂"],
+    "客户最终不成交，最常见的原因是什么？": "价格高、需求不匹配、决策链复杂",
+    "公司目前有多少名销售人员？": "6–10人",
+    "当前销售主要依赖谁？": "主要依赖老板",
+    "公司当前销售增长最大的瓶颈是什么？未来90天最希望改善什么？": "获客机制不稳定、销售流程不标准、过度依赖老板资源"
+}
+
 # Form
 with st.form("questionnaire_form"):
     st.subheader("填写企业销售诊断问卷")
+    st.caption("💡 **Demo案例**：已自动填入「华东智造装备有限公司」示例数据。你可以直接点击「生成报告」查看效果，或修改任意字段。")
     answers = {}
     
     for q, config in questions.items():
+        default = demo_data.get(q)
         if config["type"] == "text":
-            answers[q] = st.text_input(q, key=q)
+            answers[q] = st.text_input(q, value=default or "", key=q)
         elif config["type"] == "select":
-            answers[q] = st.selectbox(q, config["options"], key=q)
+            idx = config["options"].index(default) if default in config.get("options", []) else 0
+            answers[q] = st.selectbox(q, config["options"], index=idx, key=q)
         elif config["type"] == "multiselect":
-            answers[q] = st.multiselect(q, config["options"], key=q)
+            default_list = default if isinstance(default, list) else []
+            answers[q] = st.multiselect(q, config["options"], default=default_list, key=q)
     
-    submitted = st.form_submit_button("生成诊断报告")
+    submitted = st.form_submit_button("🚀 生成诊断报告")
 
 if submitted:
     # Prepare input for prompt
@@ -59,7 +86,7 @@ if submitted:
     
     with st.spinner("正在调用阿里千问大模型生成报告..."):
         # Note: API key should be set via environment or secrets, not shown in UI
-        api_key = os.getenv("DASHSCOPE_API_KEY")  # Assume set in env
+        api_key = os.getenv("DASHSCOPE_API_KEY")
         if not api_key:
             st.error("API Key not configured. Please set DASHSCOPE_API_KEY environment variable.")
         else:
@@ -92,4 +119,4 @@ if submitted:
                 st.error(f"生成失败: {str(e)}")
 
 st.sidebar.markdown("### 使用说明")
-st.sidebar.info("填写左侧问卷后点击生成按钮。\n报告基于阿里千问模型生成。")
+st.sidebar.info("填写左侧问卷后点击生成按钮。\n报告基于阿里千问模型生成。\nDemo数据来自附件中的示例报告。")
