@@ -1,4 +1,3 @@
-
 import streamlit as st
 from openai import OpenAI
 from docx import Document
@@ -18,7 +17,7 @@ st.title("📈 AI销售增长诊断助手")
 st.markdown("**填写企业信息，自动生成销售增长诊断报告与90天改进方案**")
 
 # =========================
-# API KEY 获取（优先 Secrets）
+# API KEY 获取
 # =========================
 def get_api_key():
     if "QWEN_API_KEY" in st.secrets:
@@ -28,8 +27,14 @@ def get_api_key():
 api_key = get_api_key()
 
 if not api_key:
-    st.error("⚠️ 未检测到阿里千问 API Key，请确认已在 Streamlit Cloud → Settings → Secrets 中添加：\n\nQWEN_API_KEY = \"your-key-here\"")
-    st.stop()
+    api_key = st.text_input(
+        "请输入阿里千问 API Key",
+        type="password",
+        placeholder="sk-xxxxxxxx"
+    )
+    if not api_key:
+        st.info("请输入 API Key 后继续使用")
+        st.stop()
 
 # =========================
 # 企业信息表单
@@ -157,4 +162,3 @@ if submitted:
 
 st.markdown("---")
 st.caption("Powered by 阿里千问 Qwen + Streamlit")
-
