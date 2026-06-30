@@ -1,4 +1,4 @@
-```python
+
 import streamlit as st
 from openai import OpenAI
 from docx import Document
@@ -157,4 +157,4 @@ if submitted:
 
 st.markdown("---")
 st.caption("Powered by 阿里千问 Qwen + Streamlit")
-```
+
