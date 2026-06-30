@@ -8,7 +8,7 @@ st.set_page_config(page_title="AI销售增长诊断助手", layout="wide")
 st.title("🧠 AI销售增长诊断助手")
 st.markdown("**填写问卷后自动生成销售增长诊断报告**")
 
-# Load questionnaire structure (hardcoded from extracted data)
+# Load questionnaire structure
 questions = {
     "企业名称": {"type": "text"},
     "所属行业": {"type": "select", "options": ["工业制造", "企业服务 / SaaS", "医疗器械 / 医疗服务", "消费品", "半导体 / 硬科技", "建筑 / 工程 / 设备", "教育培训", "咨询服务", "其他"]},
@@ -32,7 +32,7 @@ questions = {
     "公司当前销售增长最大的瓶颈是什么？未来90天最希望改善什么？": {"type": "text"}
 }
 
-# Demo data extracted from tbs销售-demo 报告 (华东智造装备有限公司)
+# Demo data
 demo_data = {
     "企业名称": "华东智造装备有限公司",
     "所属行业": "工业制造",
@@ -76,16 +76,19 @@ with st.form("questionnaire_form"):
     submitted = st.form_submit_button("🚀 生成诊断报告")
 
 if submitted:
-    # Prepare input for prompt
     questionnaire_data = "\n".join([f"{q}: {answers[q]}" for q in answers if answers[q]])
     
-    prompt_doc = Document('/home/workdir/attachments/销售 tbs-prompt.docx')
-    system_prompt = "\n".join([p.text for p in prompt_doc.paragraphs if p.text.strip()])
+    # Load prompt with error handling
+    try:
+        prompt_doc = Document('/home/workdir/attachments/销售 tbs-prompt.docx')
+        system_prompt = "\n".join([p.text for p in prompt_doc.paragraphs if p.text.strip()])
+    except Exception as e:
+        system_prompt = "你是一名企业销售增长诊断顾问。请基于用户提供的问卷答案，严格按照指定结构输出一份专业的《销售增长诊断报告与90天改进方案》。"
+        st.warning("提示词文件加载异常，使用备用提示词。")
     
     full_prompt = f"{system_prompt}\n\n用户问卷答案：\n{questionnaire_data}\n\n请严格按照报告结构输出完整的诊断报告。"
     
     with st.spinner("正在调用阿里千问大模型生成报告..."):
-        # Note: API key should be set via environment or secrets, not shown in UI
         api_key = os.getenv("DASHSCOPE_API_KEY")
         if not api_key:
             st.error("API Key not configured. Please set DASHSCOPE_API_KEY environment variable.")
@@ -93,18 +96,10 @@ if submitted:
             try:
                 response = requests.post(
                     "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json"
-                    },
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                     json={
                         "model": "qwen-turbo",
-                        "input": {
-                            "messages": [
-                                {"role": "system", "content": "你是一名专业的销售增长诊断顾问。"},
-                                {"role": "user", "content": full_prompt}
-                            ]
-                        },
+                        "input": {"messages": [{"role": "system", "content": "你是一名专业的销售增长诊断顾问。"}, {"role": "user", "content": full_prompt}]},
                         "parameters": {"result_format": "message"}
                     }
                 )
@@ -119,4 +114,4 @@ if submitted:
                 st.error(f"生成失败: {str(e)}")
 
 st.sidebar.markdown("### 使用说明")
-st.sidebar.info("填写左侧问卷后点击生成按钮。\n报告基于阿里千问模型生成。\nDemo数据来自附件中的示例报告。")
+st.sidebar.info("填写左侧问卷后点击生成按钮。\n报告基于阿里千问模型生成。")
