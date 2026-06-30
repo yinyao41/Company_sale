@@ -108,14 +108,16 @@ if submitted:
                     result = response.json()
                     report = result['output']['choices'][0]['message']['content']
                     
-                    # Clean report: remove header with date and footer with signature
+                    # Clean unwanted content
                     report = re.sub(r'销售增长诊断报告与90天改进方案.*?报告日期.*?\n\n', '', report, flags=re.DOTALL | re.IGNORECASE)
                     report = re.sub(r'顾问签名：.*?(日期：.*?)?\s*$', '', report, flags=re.DOTALL | re.IGNORECASE)
+                    report = re.sub(r'顾问：销售增长诊断顾问', '', report, flags=re.IGNORECASE)
+                    report = re.sub(r'联系方式：\[您的邮箱/电话\]', '', report, flags=re.IGNORECASE)
                     
                     st.success("报告生成完成！")
                     st.markdown(report)
                     
-                    # Download
+                    # Download button
                     company_name = answers.get("企业名称", "企业").replace(" ", "_").replace("/", "_")
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
                     filename = f"{company_name}_销售诊断报告_{timestamp}.md"
@@ -132,4 +134,4 @@ if submitted:
                 st.error(f"生成失败: {str(e)}")
 
 st.sidebar.markdown("### 使用说明")
-st.sidebar.info("填写问卷后生成报告。\n 该报告由大模型生成仅做参考，不构成正式建议")
+st.sidebar.info("填写问卷后生成报告。\n该报告由大模型生成仅做参考，不构成正式建议")
