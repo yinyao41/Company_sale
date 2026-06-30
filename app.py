@@ -27,14 +27,8 @@ def get_api_key():
 api_key = get_api_key()
 
 if not api_key:
-    api_key = st.text_input(
-        "请输入阿里千问 API Key",
-        type="password",
-        placeholder="sk-xxxxxxxx"
-    )
-    if not api_key:
-        st.info("请输入 API Key 后继续使用")
-        st.stop()
+    st.error("⚠️ 未检测到 API Key，请联系管理员配置")
+    st.stop()
 
 # =========================
 # 企业信息表单
