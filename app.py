@@ -132,4 +132,4 @@ if submitted:
                 st.error(f"生成失败: {str(e)}")
 
 st.sidebar.markdown("### 使用说明")
-st.sidebar.info("填写问卷后生成报告。\n报告已自动去除顶部日期信息和底部签名栏。")
+st.sidebar.info("填写问卷后生成报告。")
