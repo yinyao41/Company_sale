@@ -1,4 +1,3 @@
-
 import streamlit as st
 from openai import OpenAI
 from docx import Document
@@ -57,14 +56,31 @@ def load_reference_docs():
 # API KEY 获取
 # =========================
 def get_api_key():
-    if "QWEN_API_KEY" in st.secrets:
-        return st.secrets["QWEN_API_KEY"]
-    return os.getenv("QWEN_API_KEY")
+    # 方式1：Streamlit Secrets
+    try:
+        key = st.secrets.get("QWEN_API_KEY", None)
+        if key:
+            return key
+    except Exception:
+        pass
+    # 方式2：环境变量
+    try:
+        key = os.environ.get("QWEN_API_KEY", None)
+        if key:
+            return key
+    except Exception:
+        pass
+    return None
 
 api_key = get_api_key()
 
 if not api_key:
-    st.error("⚠️ 未检测到 API Key，请联系管理员配置")
+    st.error("⚠️ 未检测到 API Key，请确认 Streamlit Cloud → Settings → Secrets 中已添加：\n\nQWEN_API_KEY = \"sk-xxxxxxxx\"")
+    # 调试信息（确认后可删除）
+    try:
+        st.info(f"当前 Secrets 中的 keys：{list(st.secrets.keys())}")
+    except Exception as e:
+        st.info(f"Secrets 读取异常：{str(e)}")
     st.stop()
 
 # =========================
