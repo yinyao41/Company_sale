@@ -132,4 +132,4 @@ if submitted:
                 st.error(f"生成失败: {str(e)}")
 
 st.sidebar.markdown("### 使用说明")
-st.sidebar.info("填写问卷后生成报告。")
+st.sidebar.info("填写问卷后生成报告。\n 该报告由大模型生成仅做参考，不构成正式建议")
