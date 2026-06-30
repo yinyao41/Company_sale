@@ -1,346 +1,95 @@
 import streamlit as st
-from openai import OpenAI
 import os
-import datetime
 from docx import Document
+import requests
+import json
 
-# =========================
+st.set_page_config(page_title="AI销售增长诊断助手", layout="wide")
 
-# 页面配置
+st.title("🧠 AI销售增长诊断助手")
+st.markdown("**填写问卷后自动生成销售增长诊断报告**")
 
-# =========================
+# Load questionnaire structure (hardcoded from extracted data)
+questions = {
+    "企业名称": {"type": "text"},
+    "所属行业": {"type": "select", "options": ["工业制造", "企业服务 / SaaS", "医疗器械 / 医疗服务", "消费品", "半导体 / 硬科技", "建筑 / 工程 / 设备", "教育培训", "咨询服务", "其他"]},
+    "公司主要产品或服务是什么？": {"type": "text"},
+    "当前年收入规模大概是多少？": {"type": "select", "options": ["500万元以下", "500万–1000万元", "1000万–3000万元", "3000万–1亿元", "1亿–3亿元", "3亿元以上", "不方便透露"]},
+    "产品或服务的平均客单价大概是多少？": {"type": "select", "options": ["1万元以下", "1万–5万元", "5万–20万元", "20万–50万元", "50万–100万元", "100万元以上", "不清楚"]},
+    "公司主要客户类型是什么？": {"type": "multiselect", "options": ["大型企业", "中小企业", "政府 / 事业单位", "经销商 / 代理商", "个人消费者", "工厂 / 制造企业", "医院 / 学校 / 园区等机构"]},
+    "公司目前最主要的客户来自哪些行业？": {"type": "text"},
+    "公司是否已经形成清晰的目标客户画像？": {"type": "select", "options": ["非常清晰，知道重点卖给谁", "大致清楚，但还不够聚焦", "不太清楚，什么客户都想做", "基本没有客户画像"]},
+    "公司目前最容易成交的客户有什么共同特征？": {"type": "text"},
+    "公司目前主要通过哪些方式获得客户线索？": {"type": "multiselect", "options": ["老板个人资源", "老客户转介绍", "销售主动开发", "展会 / 行业会议", "经销商 / 代理商", "线上投放", "短视频 / 公众号 / 内容获客", "政府 / 园区 / 协会资源", "合作伙伴推荐", "电话 / 邮件 / 陌拜"]},
+    "当前最有效的获客渠道是什么？为什么？": {"type": "text"},
+    "公司每月大概新增多少条客户线索？": {"type": "select", "options": ["10条以下", "10–30条", "30–100条", "100条以上", "没有统计"]},
+    "当前获客最大的困难是什么？": {"type": "multiselect", "options": ["线索数量少", "线索质量差", "获客成本高", "客户不信任", "品牌知名度低", "不知道该找谁", "销售主动开发能力弱", "老板资源用完后增长乏力"]},
+    "从首次接触客户到最终成交，平均销售周期大概多久？": {"type": "select", "options": ["1周以内", "1周–1个月", "1–3个月", "3–6个月", "6个月以上", "不清楚"]},
+    "公司是否有明确的销售流程？": {"type": "select", "options": ["有标准流程，销售都按流程执行", "有大致流程，但执行不统一", "主要靠销售个人经验", "基本没有流程"]},
+    "当前销售过程最容易卡在哪个环节？": {"type": "multiselect", "options": ["找不到合适客户", "客户愿意见面但不推进", "需求沟通不清楚", "报价后客户不回复", "客户觉得价格高", "决策链条复杂", "竞争对手截单", "合同流程慢", "回款慢"]},
+    "客户最终不成交，最常见的原因是什么？": {"type": "text"},
+    "公司目前有多少名销售人员？": {"type": "select", "options": ["0–2人", "3–5人", "6–10人", "11–30人", "30人以上"]},
+    "当前销售主要依赖谁？": {"type": "select", "options": ["主要依赖老板", "主要依赖销售负责人", "主要依赖少数核心销售", "销售团队整体比较均衡", "主要依赖渠道代理"]},
+    "公司当前销售增长最大的瓶颈是什么？未来90天最希望改善什么？": {"type": "text"}
+}
 
-st.set_page_config(
-page_title="AI销售增长诊断助手",
-page_icon="📈",
-layout="wide"
-)
-
-st.title("📈 AI销售增长诊断助手")
-st.markdown("### 填写企业信息，自动生成销售增长诊断报告与90天改进方案")
-
-# =========================
-
-# API KEY 获取
-
-# =========================
-
-def get_api_key():
-
-```
-try:
-    key = st.secrets["QWEN_API_KEY"]
-    if key:
-        return key
-except:
-    pass
-
-key = os.getenv("QWEN_API_KEY")
-if key:
-    return key
-
-return None
-```
-
-api_key = get_api_key()
-
-# =========================
-
-# API状态
-
-# =========================
-
-with st.expander("🔧 API配置状态"):
-
-```
-try:
-    st.write("Secrets Keys:")
-    st.write(list(st.secrets.keys()))
-except Exception as e:
-    st.write("Secrets未加载")
-    st.write(str(e))
-
-st.write(
-    "环境变量QWEN_API_KEY：",
-    "存在" if os.getenv("QWEN_API_KEY") else "不存在"
-)
-```
-
-if api_key:
-
-```
-st.success("✅ 已检测到阿里千问 API")
-```
-
-else:
-
-```
-st.warning("⚠️ 未检测到 API Key")
-
-api_key = st.text_input(
-    "请输入阿里千问API Key",
-    type="password",
-    placeholder="sk-xxxxxxxxxxxxxxxx"
-)
-```
-
-# =========================
-
-# 企业信息表单
-
-# =========================
-
-with st.form("diagnosis_form"):
-
-```
-col1, col2 = st.columns(2)
-
-with col1:
-
-    company_name = st.text_input(
-        "企业名称*",
-        placeholder="例如：山东固丰体育产业有限公司"
-    )
-
-    industry = st.selectbox(
-        "所属行业*",
-        [
-            "工业制造",
-            "建筑工程",
-            "企业服务/SaaS",
-            "医疗器械",
-            "消费品",
-            "半导体",
-            "新能源",
-            "其他"
-        ]
-    )
-
-    revenue = st.selectbox(
-        "年收入规模",
-        [
-            "500万以下",
-            "500-1000万",
-            "1000-3000万",
-            "3000万-1亿",
-            "1-3亿",
-            "3亿以上"
-        ]
-    )
-
-with col2:
-
-    customer_profile = st.selectbox(
-        "客户画像是否清晰",
-        [
-            "非常清晰",
-            "大致清楚",
-            "不太清楚",
-            "基本没有"
-        ]
-    )
-
-    lead_channel = st.multiselect(
-        "主要获客渠道",
-        [
-            "老板个人资源",
-            "老客户转介绍",
-            "销售主动开发",
-            "展会",
-            "线上投放",
-            "合作伙伴推荐"
-        ]
-    )
-
-    lead_count = st.selectbox(
-        "每月新增线索",
-        [
-            "10条以下",
-            "10-30条",
-            "30-100条",
-            "100条以上"
-        ]
-    )
-
-sales_process = st.selectbox(
-    "销售流程情况",
-    [
-        "标准流程",
-        "有流程但执行不统一",
-        "主要靠个人经验",
-        "基本没有流程"
-    ]
-)
-
-sales_dependency = st.selectbox(
-    "销售主要依赖",
-    [
-        "主要依赖老板",
-        "主要依赖销售负责人",
-        "主要依赖核心销售",
-        "团队整体均衡"
-    ]
-)
-
-bottleneck = st.text_area(
-    "当前销售增长最大瓶颈",
-    height=120
-)
-
-submitted = st.form_submit_button(
-    "🚀 生成诊断报告",
-    use_container_width=True
-)
-```
-
-# =========================
-
-# 生成报告
-
-# =========================
+# Form
+with st.form("questionnaire_form"):
+    st.subheader("填写企业销售诊断问卷")
+    answers = {}
+    
+    for q, config in questions.items():
+        if config["type"] == "text":
+            answers[q] = st.text_input(q, key=q)
+        elif config["type"] == "select":
+            answers[q] = st.selectbox(q, config["options"], key=q)
+        elif config["type"] == "multiselect":
+            answers[q] = st.multiselect(q, config["options"], key=q)
+    
+    submitted = st.form_submit_button("生成诊断报告")
 
 if submitted:
+    # Prepare input for prompt
+    questionnaire_data = "\n".join([f"{q}: {answers[q]}" for q in answers if answers[q]])
+    
+    prompt_doc = Document('/home/workdir/attachments/销售 tbs-prompt.docx')
+    system_prompt = "\n".join([p.text for p in prompt_doc.paragraphs if p.text.strip()])
+    
+    full_prompt = f"{system_prompt}\n\n用户问卷答案：\n{questionnaire_data}\n\n请严格按照报告结构输出完整的诊断报告。"
+    
+    with st.spinner("正在调用阿里千问大模型生成报告..."):
+        # Note: API key should be set via environment or secrets, not shown in UI
+        api_key = os.getenv("DASHSCOPE_API_KEY")  # Assume set in env
+        if not api_key:
+            st.error("API Key not configured. Please set DASHSCOPE_API_KEY environment variable.")
+        else:
+            try:
+                response = requests.post(
+                    "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": "qwen-turbo",
+                        "input": {
+                            "messages": [
+                                {"role": "system", "content": "你是一名专业的销售增长诊断顾问。"},
+                                {"role": "user", "content": full_prompt}
+                            ]
+                        },
+                        "parameters": {"result_format": "message"}
+                    }
+                )
+                if response.status_code == 200:
+                    result = response.json()
+                    report = result['output']['choices'][0]['message']['content']
+                    st.success("报告生成完成！")
+                    st.markdown(report)
+                else:
+                    st.error(f"API Error: {response.text}")
+            except Exception as e:
+                st.error(f"生成失败: {str(e)}")
 
-```
-if not api_key:
-
-    st.error("未检测到阿里千问 API Key")
-    st.stop()
-
-if not company_name:
-
-    st.error("请输入企业名称")
-    st.stop()
-
-with st.spinner("正在生成销售诊断报告..."):
-
-    try:
-
-        client = OpenAI(
-            api_key=api_key,
-            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
-        )
-
-        prompt = f"""
-```
-
-你是一名资深销售增长顾问。
-
-请根据以下企业信息生成一份专业的：
-
-《销售增长诊断报告与90天改进方案》
-
-企业名称：
-{company_name}
-
-所属行业：
-{industry}
-
-年收入规模：
-{revenue}
-
-客户画像：
-{customer_profile}
-
-获客渠道：
-{lead_channel}
-
-新增线索：
-{lead_count}
-
-销售流程：
-{sales_process}
-
-销售依赖：
-{sales_dependency}
-
-当前瓶颈：
-{bottleneck}
-
-请输出：
-
-# 一、企业销售画像
-
-# 二、核心诊断结论
-
-# 三、销售成熟度评分（100分）
-
-# 四、主要销售瓶颈排序
-
-# 五、详细分析
-
-* 客户定位
-* 获客能力
-* 销售转化
-* 团队能力
-* 管理体系
-
-# 六、90天行动方案
-
-## 第1-30天
-
-## 第31-60天
-
-## 第61-90天
-
-# 七、老板必须盯住的5个指标
-
-# 八、不建议立即做的事情
-
-# 九、后续需要补充的信息
-
-"""
-
-```
-        response = client.chat.completions.create(
-            model="qwen-plus",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-        )
-
-        report = response.choices[0].message.content
-
-        st.success("✅ 诊断完成")
-
-        st.markdown("---")
-        st.markdown(report)
-
-        # Word导出
-
-        doc = Document()
-
-        doc.add_heading(
-            f"{company_name}销售增长诊断报告",
-            level=1
-        )
-
-        doc.add_paragraph(report)
-
-        filename = (
-            f"{company_name}_销售诊断报告_"
-            f"{datetime.date.today()}.docx"
-        )
-
-        doc.save(filename)
-
-        with open(filename, "rb") as f:
-
-            st.download_button(
-                "📥 下载Word报告",
-                f,
-                file_name=filename,
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                use_container_width=True
-            )
-
-    except Exception as e:
-
-        st.error(f"调用失败：{str(e)}")
-```
-
-st.markdown("---")
-st.caption("Powered by Qwen + Streamlit")
+st.sidebar.markdown("### 使用说明")
+st.sidebar.info("填写左侧问卷后点击生成按钮。\n报告基于阿里千问模型生成。")
