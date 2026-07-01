@@ -7,6 +7,21 @@ import re
 
 st.set_page_config(page_title="AI销售增长诊断助手", layout="wide")
 
+# 覆盖 multiselect 红色标签样式
+st.markdown("""
+<style>
+span[data-baseweb="tag"] {
+    background-color: #4A90D9 !important;
+}
+span[data-baseweb="tag"] span {
+    color: white !important;
+}
+span[data-baseweb="tag"] svg {
+    fill: white !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.title("🧠 AI销售增长诊断助手")
 st.markdown("**填写问卷后自动生成销售增长诊断报告**")
 
@@ -36,7 +51,7 @@ questions = {
 
 # Demo data
 demo_data = {
-    "企业名称": "华东智造装备有限公司",
+    "企业名称": "华东某某智造装备有限公司",
     "所属行业": "工业制造",
     "公司主要产品或服务是什么？": "自动化检测设备和产线改造方案，产品包括视觉检测设备、自动分拣设备和非标自动化产线升级服务",
     "当前年收入规模大概是多少？": "3000万–1亿元",
@@ -61,9 +76,9 @@ demo_data = {
 # Form
 with st.form("questionnaire_form"):
     st.subheader("填写企业销售诊断问卷")
-    st.caption("💡 **Demo案例**：已自动填入「华东智造装备有限公司」示例数据。你可以直接点击「生成报告」查看效果，或修改任意字段。")
+    st.caption("💡 **Demo案例**：已自动填入「华东某某智造装备有限公司」示例数据。你可以直接点击「生成报告」查看效果，或修改任意字段。")
     answers = {}
-    
+
     for q, config in questions.items():
         default = demo_data.get(q)
         if config["type"] == "text":
@@ -74,21 +89,21 @@ with st.form("questionnaire_form"):
         elif config["type"] == "multiselect":
             default_list = default if isinstance(default, list) else []
             answers[q] = st.multiselect(q, config["options"], default=default_list, key=q)
-    
+
     submitted = st.form_submit_button("🚀 生成诊断报告")
 
 if submitted:
     questionnaire_data = "\n".join([f"{q}: {answers[q]}" for q in answers if answers[q]])
-    
+
     # Load prompt
     try:
         prompt_doc = Document('/home/workdir/attachments/销售 tbs-prompt.docx')
         system_prompt = "\n".join([p.text for p in prompt_doc.paragraphs if p.text.strip()])
     except Exception:
         system_prompt = "你是一名企业销售增长诊断顾问。请基于用户提供的问卷答案，严格按照指定结构输出一份专业的《销售增长诊断报告与90天改进方案》。"
-    
+
     full_prompt = f"{system_prompt}\n\n用户问卷答案：\n{questionnaire_data}\n\n请严格按照报告结构输出完整的诊断报告。"
-    
+
     with st.spinner("生成诊断报告中..."):
         api_key = os.getenv("DASHSCOPE_API_KEY")
         if not api_key:
@@ -107,21 +122,21 @@ if submitted:
                 if response.status_code == 200:
                     result = response.json()
                     report = result['output']['choices'][0]['message']['content']
-                    
+
                     # Clean unwanted content
                     report = re.sub(r'销售增长诊断报告与90天改进方案.*?报告日期.*?\n\n', '', report, flags=re.DOTALL | re.IGNORECASE)
                     report = re.sub(r'顾问签名：.*?(日期：.*?)?\s*$', '', report, flags=re.DOTALL | re.IGNORECASE)
                     report = re.sub(r'顾问：销售增长诊断顾问', '', report, flags=re.IGNORECASE)
                     report = re.sub(r'联系方式：\[您的邮箱/电话\]', '', report, flags=re.IGNORECASE)
-                    
+
                     st.success("报告生成完成！")
                     st.markdown(report)
-                    
+
                     # Download button
                     company_name = answers.get("企业名称", "企业").replace(" ", "_").replace("/", "_")
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
                     filename = f"{company_name}_销售诊断报告_{timestamp}.md"
-                    
+
                     st.download_button(
                         label="📥 下载完整报告",
                         data=report,
