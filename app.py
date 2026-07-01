@@ -7,7 +7,6 @@ import re
 
 st.set_page_config(page_title="AI销售增长诊断助手", layout="wide")
 
-# multiselect 标签：白底灰边深色字
 st.markdown("""
 <style>
 span[data-baseweb="tag"] {
@@ -73,6 +72,32 @@ demo_data = {
     "公司当前销售增长最大的瓶颈是什么？未来90天最希望改善什么？": "获客机制不稳定、销售流程不标准、过度依赖老板资源"
 }
 
+def clean_report(text):
+    # 清除顾问签字、日期、联系方式等所有签署信息（整行删除）
+    patterns = [
+        r'^\s*\*{0,2}顾问签字[：:※].*$',
+        r'^\s*\*{0,2}顾问[：:※].*$',
+        r'^\s*\*{0,2}签字[：:※].*$',
+        r'^\s*\*{0,2}日期[：:※].*$',
+        r'^\s*\*{0,2}报告日期[：:※].*$',
+        r'^\s*\*{0,2}联系方式[：:※].*$',
+        r'^\s*\*{0,2}出具日期[：:※].*$',
+        r'^\s*\*{0,2}报告出具.*$',
+        r'^\s*.*顾问签字.*$',
+        r'^\s*.*\d{4}年\d{1,2}月\d{1,2}日\s*$',  # 单独一行的纯日期
+    ]
+    lines = text.split('\n')
+    cleaned = []
+    for line in lines:
+        skip = False
+        for p in patterns:
+            if re.match(p, line, flags=re.IGNORECASE):
+                skip = True
+                break
+        if not skip:
+            cleaned.append(line)
+    return '\n'.join(cleaned).strip()
+
 with st.form("questionnaire_form"):
     st.subheader("填写企业销售诊断问卷")
     st.caption("💡 **Demo案例**：已自动填入「华东某某智造装备有限公司」示例数据。你可以直接点击「生成报告」查看效果，或修改任意字段。")
@@ -100,6 +125,9 @@ if submitted:
     except Exception:
         system_prompt = "你是一名企业销售增长诊断顾问。请基于用户提供的问卷答案，严格按照指定结构输出一份专业的《销售增长诊断报告与90天改进方案》。"
 
+    # 在 prompt 末尾明确禁止输出签署信息
+    system_prompt += "\n\n【重要限制】报告结尾禁止出现顾问签字、签名、日期、联系方式、报告出具人等任何签署性内容，直接以正文内容结束。"
+
     full_prompt = f"{system_prompt}\n\n用户问卷答案：\n{questionnaire_data}\n\n请严格按照报告结构输出完整的诊断报告。"
 
     with st.spinner("生成诊断报告中..."):
@@ -113,7 +141,10 @@ if submitted:
                     headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                     json={
                         "model": "qwen-turbo",
-                        "input": {"messages": [{"role": "system", "content": "你是一名专业的销售增长诊断顾问。"}, {"role": "user", "content": full_prompt}]},
+                        "input": {"messages": [
+                            {"role": "system", "content": "你是一名专业的销售增长诊断顾问。"},
+                            {"role": "user", "content": full_prompt}
+                        ]},
                         "parameters": {"result_format": "message"}
                     }
                 )
@@ -121,10 +152,8 @@ if submitted:
                     result = response.json()
                     report = result['output']['choices'][0]['message']['content']
 
-                    report = re.sub(r'销售增长诊断报告与90天改进方案.*?报告日期.*?\n\n', '', report, flags=re.DOTALL | re.IGNORECASE)
-                    report = re.sub(r'顾问签名：.*?(日期：.*?)?\s*$', '', report, flags=re.DOTALL | re.IGNORECASE)
-                    report = re.sub(r'顾问：销售增长诊断顾问', '', report, flags=re.IGNORECASE)
-                    report = re.sub(r'联系方式：\[您的邮箱/电话\]', '', report, flags=re.IGNORECASE)
+                    # 后处理：逐行清除签署信息
+                    report = clean_report(report)
 
                     st.success("报告生成完成！")
                     st.markdown(report)
