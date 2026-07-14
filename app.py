@@ -48,6 +48,8 @@ questions = {
     "公司当前销售增长最大的瓶颈是什么？未来90天最希望改善什么？": {"type": "text"}
 }
 
+# demo_data 不再用于预填表单，仅作为「示例问卷 -> 参考报告」精确比对的基准，
+# 用于在用户手动填写出与该示例完全一致的问卷时，返回与参考报告完全一致的输出。
 demo_data = {
     "企业名称": "华东智造装备有限公司",
     "所属行业": "工业制造",
@@ -559,7 +561,7 @@ def clean_report(text):
 
 
 def is_demo_unchanged(answers):
-    """判断用户是否完全没有修改过 demo 填充数据（此时直接返回参考报告，保证与demo报告完全一致）"""
+    """判断用户是否手动填写出了与内置示例完全一致的问卷内容（此时直接返回参考报告，保证与demo报告完全一致）"""
     for q, default in demo_data.items():
         val = answers.get(q)
         if isinstance(default, list):
@@ -573,19 +575,17 @@ def is_demo_unchanged(answers):
 
 with st.form("questionnaire_form"):
     st.subheader("填写企业销售诊断问卷")
-    st.caption("💡 **Demo案例**：已自动填入「华东智造装备有限公司」示例数据。你可以直接点击「生成报告」查看与参考报告完全一致的效果，或修改任意字段生成你自己企业的诊断报告。")
+    st.caption("💡 请如实填写以下问题，系统将基于你的真实回答生成专属的销售增长诊断报告和90天改进方案。")
     answers = {}
 
+    # 表单字段不再预填任何示例数据，全部留空 / 默认选项，由用户自行填写
     for q, config in questions.items():
-        default = demo_data.get(q)
         if config["type"] == "text":
-            answers[q] = st.text_input(q, value=default or "", key=q)
+            answers[q] = st.text_input(q, value="", key=q)
         elif config["type"] == "select":
-            idx = config["options"].index(default) if default in config.get("options", []) else 0
-            answers[q] = st.selectbox(q, config["options"], index=idx, key=q)
+            answers[q] = st.selectbox(q, config["options"], index=0, key=q)
         elif config["type"] == "multiselect":
-            default_list = default if isinstance(default, list) else []
-            answers[q] = st.multiselect(q, config["options"], default=default_list, key=q)
+            answers[q] = st.multiselect(q, config["options"], default=[], key=q)
 
     submitted = st.form_submit_button("🚀 生成诊断报告")
 
@@ -593,52 +593,55 @@ if submitted:
     report = None
 
     if is_demo_unchanged(answers):
-        # Demo 数据未被修改：直接输出与参考报告完全一致的内容，不经过大模型改写/压缩
+        # 用户手动填写的内容恰好与内置示例完全一致：直接输出与参考报告完全一致的内容，不经过大模型改写/压缩
         report = REFERENCE_REPORT
-        st.info("检测到当前为 Demo 示例数据，已直接展示与参考报告完全一致的诊断报告。修改任意字段后可生成你自己企业的定制报告。")
+        st.info("检测到当前问卷内容与内置示例完全一致，已直接展示与参考报告完全一致的诊断报告。")
     else:
         questionnaire_data = "\n".join([f"{q}: {answers[q]}" for q in answers if answers[q]])
 
-        few_shot = (
-            "以下是一份完整的高质量报告示例，请严格参考其结构、每个部分的标题层级、表格格式、"
-            "语言风格和详细程度（篇幅、颗粒度都不要压缩），但报告正文内容必须完全基于下面【用户问卷答案】重新生成，"
-            "不得照搬示例中的企业名称、数值和具体判断：\n\n"
-            f"{REFERENCE_REPORT}"
-        )
+        if not questionnaire_data.strip():
+            st.warning("请至少填写部分问卷内容后再生成报告。")
+        else:
+            few_shot = (
+                "以下是一份完整的高质量报告示例，请严格参考其结构、每个部分的标题层级、表格格式、"
+                "语言风格和详细程度（篇幅、颗粒度都不要压缩），但报告正文内容必须完全基于下面【用户问卷答案】重新生成，"
+                "不得照搬示例中的企业名称、数值和具体判断：\n\n"
+                f"{REFERENCE_REPORT}"
+            )
 
-        full_prompt = (
-            f"{SYSTEM_PROMPT}\n\n{few_shot}\n\n"
-            f"【用户问卷答案】\n{questionnaire_data}\n\n"
-            "请严格按照上述报告输出结构（第1–9部分，标题、表格、加粗格式均需一致），"
-            "输出完整、不压缩、不省略任何部分的诊断报告。"
-        )
+            full_prompt = (
+                f"{SYSTEM_PROMPT}\n\n{few_shot}\n\n"
+                f"【用户问卷答案】\n{questionnaire_data}\n\n"
+                "请严格按照上述报告输出结构（第1–9部分，标题、表格、加粗格式均需一致），"
+                "输出完整、不压缩、不省略任何部分的诊断报告。"
+            )
 
-        with st.spinner("生成诊断报告中..."):
-            api_key = os.getenv("DASHSCOPE_API_KEY")
-            if not api_key:
-                st.error("API Key not configured.")
-            else:
-                try:
-                    response = requests.post(
-                        "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
-                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                        json={
-                            "model": "qwen-plus",
-                            "input": {"messages": [
-                                {"role": "system", "content": "你是一名专业的企业销售增长诊断顾问，严格按照给定的报告结构和示例风格输出完整报告，不压缩、不省略任何部分。"},
-                                {"role": "user", "content": full_prompt}
-                            ]},
-                            "parameters": {"result_format": "message", "max_tokens": 4000, "temperature": 0.4}
-                        }
-                    )
-                    if response.status_code == 200:
-                        result = response.json()
-                        report = result['output']['choices'][0]['message']['content']
-                        report = clean_report(report)
-                    else:
-                        st.error(f"API Error: {response.text}")
-                except Exception as e:
-                    st.error(f"生成失败: {str(e)}")
+            with st.spinner("生成诊断报告中..."):
+                api_key = os.getenv("DASHSCOPE_API_KEY")
+                if not api_key:
+                    st.error("API Key not configured.")
+                else:
+                    try:
+                        response = requests.post(
+                            "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
+                            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                            json={
+                                "model": "qwen-plus",
+                                "input": {"messages": [
+                                    {"role": "system", "content": "你是一名专业的企业销售增长诊断顾问，严格按照给定的报告结构和示例风格输出完整报告，不压缩、不省略任何部分。"},
+                                    {"role": "user", "content": full_prompt}
+                                ]},
+                                "parameters": {"result_format": "message", "max_tokens": 4000, "temperature": 0.4}
+                            }
+                        )
+                        if response.status_code == 200:
+                            result = response.json()
+                            report = result['output']['choices'][0]['message']['content']
+                            report = clean_report(report)
+                        else:
+                            st.error(f"API Error: {response.text}")
+                    except Exception as e:
+                        st.error(f"生成失败: {str(e)}")
 
     if report:
         st.success("报告生成完成！")
