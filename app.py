@@ -578,16 +578,15 @@ with st.form("questionnaire_form"):
     st.caption("💡 请如实填写以下问题，系统将基于你的真实回答生成专属的销售增长诊断报告和90天改进方案。")
     answers = {}
 
-    # 表单字段不再预填任何示例数据，全部留空 / 无预选项，由用户自行填写
-    PLACEHOLDER = "请选择"
+    # 表单字段不再预填任何示例数据，全部留空，由用户自行填写
     for q, config in questions.items():
         if config["type"] == "text":
             answers[q] = st.text_input(q, value="", key=q)
         elif config["type"] == "select":
-            # 在选项列表最前面插入占位项，并作为默认显示项，避免下拉框看起来像"已预填某个真实选项"
-            options_with_placeholder = [PLACEHOLDER] + config["options"]
-            selected = st.selectbox(q, options_with_placeholder, index=0, key=q)
-            answers[q] = "" if selected == PLACEHOLDER else selected
+            # index=None + placeholder="" 让下拉框默认真正空白显示，不带任何占位文字，
+            # 用户未选择时 selected 为 None，此处统一转成空字符串 ""
+            selected = st.selectbox(q, config["options"], index=None, placeholder="", key=q)
+            answers[q] = selected if selected else ""
         elif config["type"] == "multiselect":
             answers[q] = st.multiselect(q, config["options"], default=[], key=q)
 
