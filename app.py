@@ -533,6 +533,7 @@ REFERENCE_REPORT = """**《华东智造装备有限公司销售增长诊断报�
 9. 代理商或合作伙伴贡献收入情况。
 10. 公司未来一年销售目标和销售费用预算。"""
 
+
 def clean_report(text):
     # 清除顾问签字、日期、联系方式等所有签署信息（整行删除）
     patterns = [
@@ -571,6 +572,74 @@ def is_demo_unchanged(answers):
             if (val or "").strip() != (default or "").strip():
                 return False
     return True
+
+
+DASHSCOPE_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
+# 单次调用的输出长度上限（qwen-plus 支持较大输出，这里给足空间，
+# 但即便设置得很大也不能100%保证一次生成不被截断，所以下面用续写机制兜底）
+DASHSCOPE_MAX_TOKENS = 8000
+
+
+def call_qwen_with_continuation(api_key, system_msg, user_prompt, max_rounds=4, temperature=0.4):
+    """
+    调用 DashScope qwen-plus 生成报告。
+    单次调用存在输出长度上限，报告篇幅较长时可能一次生成不完（finish_reason 为 'length'，
+    即回复因为达到 max_tokens 而被硬截断，而不是模型自己写完了）。
+    这里检测到被截断时，会自动带着已生成内容让模型从中断处继续写，
+    最多续写 max_rounds 轮，直到模型正常结束（finish_reason 为 'stop'）或达到轮数上限，
+    从而保证最终输出是完整报告，而不是像"《销售晨会纪要"这样写到一半戛然而止。
+    返回 (完整文本, 错误信息或None)
+    """
+    messages = [
+        {"role": "system", "content": system_msg},
+        {"role": "user", "content": user_prompt},
+    ]
+    full_text = ""
+
+    for _ in range(max_rounds):
+        try:
+            response = requests.post(
+                DASHSCOPE_URL,
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": "qwen-plus",
+                    "input": {"messages": messages},
+                    "parameters": {
+                        "result_format": "message",
+                        "max_tokens": DASHSCOPE_MAX_TOKENS,
+                        "temperature": temperature,
+                    },
+                },
+            )
+        except Exception as e:
+            return full_text, f"生成失败: {str(e)}"
+
+        if response.status_code != 200:
+            return full_text, f"API Error: {response.text}"
+
+        result = response.json()
+        choice = result["output"]["choices"][0]
+        content = choice["message"]["content"]
+        finish_reason = choice.get("finish_reason", "stop")
+        full_text += content
+
+        if finish_reason != "length":
+            # 模型正常收尾（stop 或其他非长度截断原因），生成完毕
+            return full_text, None
+
+        # 被输出长度截断：把已生成内容作为上下文，让模型接着往下续写
+        messages.append({"role": "assistant", "content": content})
+        messages.append({
+            "role": "user",
+            "content": (
+                "你上面的回答因为长度限制被截断了，请紧接着上次中断的地方继续输出剩余内容，"
+                "不要重复已经输出过的文字，不要重新输出标题或已完成的部分，"
+                "直到完整覆盖报告第1–9部分的全部内容为止。"
+            ),
+        })
+
+    # 达到最大续写轮数仍未正常结束，返回已生成的内容并附带提示
+    return full_text, "报告篇幅较长，已达到最大续写次数，如内容仍不完整可重新点击生成。"
 
 
 with st.form("questionnaire_form"):
@@ -619,32 +688,23 @@ if submitted:
                 "输出完整、不压缩、不省略任何部分的诊断报告。"
             )
 
-            with st.spinner("生成诊断报告中..."):
+            with st.spinner("生成诊断报告中，篇幅较长可能需要多轮续写，请耐心等待..."):
                 api_key = os.getenv("DASHSCOPE_API_KEY")
                 if not api_key:
                     st.error("API Key not configured.")
                 else:
-                    try:
-                        response = requests.post(
-                            "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
-                            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                            json={
-                                "model": "qwen-plus",
-                                "input": {"messages": [
-                                    {"role": "system", "content": "你是一名专业的企业销售增长诊断顾问，严格按照给定的报告结构和示例风格输出完整报告，不压缩、不省略任何部分。"},
-                                    {"role": "user", "content": full_prompt}
-                                ]},
-                                "parameters": {"result_format": "message", "max_tokens": 4000, "temperature": 0.4}
-                            }
-                        )
-                        if response.status_code == 200:
-                            result = response.json()
-                            report = result['output']['choices'][0]['message']['content']
-                            report = clean_report(report)
-                        else:
-                            st.error(f"API Error: {response.text}")
-                    except Exception as e:
-                        st.error(f"生成失败: {str(e)}")
+                    raw_text, error_msg = call_qwen_with_continuation(
+                        api_key=api_key,
+                        system_msg="你是一名专业的企业销售增长诊断顾问，严格按照给定的报告结构和示例风格输出完整报告，不压缩、不省略任何部分。",
+                        user_prompt=full_prompt,
+                    )
+                    if raw_text:
+                        report = clean_report(raw_text)
+                    if error_msg:
+                        # 即使续写多轮仍未正常收尾，也把已生成内容展示出来，同时明确提示用户
+                        st.warning(error_msg)
+                    if not raw_text and error_msg:
+                        st.error(error_msg)
 
     if report:
         st.success("报告生成完成！")
