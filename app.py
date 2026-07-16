@@ -712,13 +712,13 @@ if submitted:
 
         company_name = (answers.get("企业名称") or "企业").replace(" ", "_").replace("/", "_")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-        filename = f"{company_name}_销售诊断报告_{timestamp}.md"
+        filename = f"{company_name}_销售诊断报告_{timestamp}.txt"
 
         st.download_button(
             label="📥 下载完整报告",
             data=report,
             file_name=filename,
-            mime="text/markdown"
+            mime="text/plain"
         )
 
 st.sidebar.markdown("### 使用说明")
